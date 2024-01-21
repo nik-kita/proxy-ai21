@@ -1,20 +1,30 @@
-import { Hono } from "https://deno.land/x/hono@v3.4.1/mod.ts";
-import data from "./data.json" assert { type: "json" };
+import { Hono } from "hono";
+import { load } from "dotenv";
 
+const headers = new Headers({
+  authorization: `Bearer ${
+    Deno.env.get("AI21_API_KEY") ?? (await load())["AI21_API_KEY"]
+  }`,
+  "content-type": "application/json",
+});
 const app = new Hono();
 
-app.get("/", (c) => c.text("Welcome to dinosaur API!"));
+app.post("/:model_type?", async (c) => {
+  const model_type = c.req.param("model_type") ?? "ultra";
+  const body = await c.req.json();
 
-app.get("/api/", (c) => c.json(data));
+  return fetch(`https://api.ai21.com/studio/v1/j2-${model_type}/complete`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+});
 
-app.get("/api/:dinosaur", (c) => {
-  const dinosaur = c.req.param("dinosaur").toLowerCase();
-  const found = data.find((item) => item.name.toLowerCase() === dinosaur);
-  if (found) {
-    return c.json(found);
-  } else {
-    return c.text("No dinosaurs found.");
-  }
+app.all("*", (c) => {
+  return c.json({
+    message: "Not Found",
+    tip: "https://docs.ai21.com/reference/j2-complete-ref",
+  }, 404);
 });
 
 Deno.serve(app.fetch);
